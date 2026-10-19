@@ -130,7 +130,6 @@ fn build_source(label: &str, url: &str, tag: &str, dest: &Path) -> Result<()> {
     let options = BuildOptions {
         features: &features,
         package: Some("steel"),
-        release: true,
         no_default_features: custom,
     };
 

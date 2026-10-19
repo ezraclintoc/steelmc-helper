@@ -5,6 +5,14 @@ edition = "2024"
 rust-version = "1.88"
 license = "MIT OR Apache-2.0"
 
+# Keep the shipped helper small: it is downloaded by install.sh on every install.
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = "symbols"
+panic = "abort"
+
 [dependencies]
 cliclack = "0.5.6"
 flate2 = "1"
