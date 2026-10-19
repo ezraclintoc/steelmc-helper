@@ -1,0 +1,110 @@
+# Builds release binaries of the helper for every supported target and
+# republishes them under a rolling `nightly` prerelease. Assets from previous
+# runs are replaced; the tag always points at the newest commit that built.
+name: nightly binaries
+
+on:
+  schedule:
+    - cron: "0 4 * * *" # 04:00 UTC daily
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nightly
+  cancel-in-progress: false
+
+env:
+  # Asset names look like steelmc-helper-nightly-x86_64-unknown-linux-gnu.
+  VERSION: nightly
+
+jobs:
+  build:
+    name: build (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: x86_64-unknown-linux-gnu, runner: ubuntu-latest }
+          - { target: x86_64-unknown-linux-musl, runner: ubuntu-latest }
+          - { target: aarch64-unknown-linux-gnu, runner: ubuntu-24.04-arm }
+          - { target: aarch64-unknown-linux-musl, runner: ubuntu-24.04-arm }
+          - { target: x86_64-pc-windows-msvc, runner: windows-latest }
+          - { target: aarch64-apple-darwin, runner: macos-latest }
+          - { target: x86_64-apple-darwin, runner: macos-26-intel }
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.target }}
+
+      - name: Install musl tools
+        if: contains(matrix.target, 'musl')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Build
+        run: cargo build --locked --release --target ${{ matrix.target }}
+
+      - name: Package (tar)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          mkdir -p dist
+          asset="steelmc-helper-${VERSION}-${{ matrix.target }}"
+          tar -czf "dist/${asset}.tar.gz" -C "target/${{ matrix.target }}/release" steelmc-helper
+
+      - name: Package (zip)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Compress-Archive -Path "target/${{ matrix.target }}/release/steelmc-helper.exe" `
+            -DestinationPath "dist/steelmc-helper-${{ env.VERSION }}-${{ matrix.target }}.zip"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.target }}
+          path: dist/*
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+
+      - name: Collect assets
+        run: |
+          mkdir release
+          find dist -type f -exec mv {} release/ \;
+          ls -la release
+
+      - name: Checksums
+        shell: bash
+        run: |
+          cd release
+          for f in *; do
+            sha256sum "$f" > "$f.sha256"
+          done
+
+      - name: Replace nightly release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete nightly --cleanup-tag --yes 2>/dev/null || true
+          gh release create nightly release/* \
+            --target "$GITHUB_SHA" \
+            --title "nightly ($GITHUB_SHA)" \
+            --notes "Automated nightly build of \`$GITHUB_SHA\`. Binaries are attached per target; each has a \`.sha256\` checksum file." \
+            --prerelease
