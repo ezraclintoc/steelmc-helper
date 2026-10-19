@@ -15,10 +15,6 @@ concurrency:
   group: nightly
   cancel-in-progress: false
 
-env:
-  # Asset names look like steelmc-helper-nightly-x86_64-unknown-linux-gnu.
-  VERSION: nightly
-
 jobs:
   build:
     name: build (${{ matrix.target }})
@@ -59,7 +55,10 @@ jobs:
         shell: bash
         run: |
           mkdir -p dist
-          asset="steelmc-helper-${VERSION}-${{ matrix.target }}"
+          # No version in the filename so `releases/latest/download/<asset>`
+          # and `releases/download/nightly/<asset>` stay stable URLs for
+          # install.sh.
+          asset="steelmc-helper-${{ matrix.target }}"
           tar -czf "dist/${asset}.tar.gz" -C "target/${{ matrix.target }}/release" steelmc-helper
 
       - name: Package (zip)
@@ -68,7 +67,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           Compress-Archive -Path "target/${{ matrix.target }}/release/steelmc-helper.exe" `
-            -DestinationPath "dist/steelmc-helper-${{ env.VERSION }}-${{ matrix.target }}.zip"
+            -DestinationPath "dist/steelmc-helper-${{ matrix.target }}.zip"
 
       - uses: actions/upload-artifact@v7
         with:

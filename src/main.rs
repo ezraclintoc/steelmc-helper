@@ -184,6 +184,12 @@ fn ensure_toolchain() -> Result<()> {
             return Err(format!("{tool} still not found after install; restart your shell").into());
         }
     }
+
+    if let Some(hint) = build::linker_hint() {
+        log::warning(format!(
+            "Linker prerequisites look incomplete. {hint} The build is likely to fail at link time until that is fixed."
+        ))?;
+    }
     Ok(())
 }
 

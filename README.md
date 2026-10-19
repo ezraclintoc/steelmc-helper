@@ -2,16 +2,16 @@
 
 An interactive CLI that installs [SteelMC](https://github.com/Steel-Foundation/SteelMC).
 
-The **prebuilt binary is the recommended install** — it downloads in seconds, needs no Rust
-toolchain, and is preselected in the first prompt. Building from source is available for a
-faster runtime, a custom feature set, or a pull request that has no release yet.
+It has two install paths, both offered in the first prompt: download a release binary (seconds,
+no Rust toolchain needed) or build from source for a faster runtime, a custom feature set, or a
+pull request that has no release yet.
 
 ```console
 $ cargo run --release
 ┌  SteelMC downloader
 │
 ◆  How do you want to install?
-│  ● Prebuilt binary (recommended: installs in seconds, fixed features)
+│  ● Prebuilt binary (installs in seconds, slower at runtime, fixed features)
 │  ○ Build from source (slow install, faster at runtime, pick features)
 └
 ```
@@ -19,14 +19,36 @@ $ cargo run --release
 There are no arguments or config files; every choice is a prompt, and `Esc`/`Ctrl-C` cancels
 cleanly. Everything is written into the directory you run it from.
 
-## Install
+## Quickstart
+
+Install the tool itself, then run it — it prompts for everything else:
+
+```console
+$ curl -fsSL https://raw.githubusercontent.com/ezraclintoc/steelmc-helper/main/install.sh | sh
+Installed ~/.local/bin/steelmc-helper.
+Run it from any directory:
+
+  steelmc-helper
+$ steelmc-helper
+```
+
+The installer detects your OS and CPU, downloads the matching release asset, verifies its
+SHA256 against the published checksum file, and installs to `~/.local/bin`. Flags: `--to <dir>`
+(pick a different prefix), `--musl` (force the static Linux build), `--nightly` (rolling nightly
+instead of the latest release). On Windows build from source with
+`cargo install --git https://github.com/ezraclintoc/steelmc-helper` instead.
+
+You already have Rust? `cargo install --git https://github.com/ezraclintoc/steelmc-helper` works
+from any platform.
+
+## Installing SteelMC
 
 | Path | Pick it when |
 | --- | --- |
-| **Prebuilt binary** (recommended, preselected) | you just want to run SteelMC: seconds to install, no toolchain |
+| **Prebuilt binary** (preselected) | you just want to run SteelMC: seconds to install, no toolchain |
 | Build from source | you want a build tuned to this machine, custom features, or an unreleased PR |
 
-### Prebuilt binary (recommended)
+### Prebuilt binary
 
 1. Choose the latest or previous release.
 2. On x86_64 Linux, choose the glibc or the static musl build; other platforms have one asset.
@@ -113,6 +135,11 @@ If the pinned channel is not installed, the error says so instead of failing con
 pinned toolchain `nightly-2026-08-21` is not installed (rustup toolchain install nightly-2026-08-21)
 ```
 
+Before downloading anything the tool also probes what the linker needs: `cc`/`gcc`/`clang` on
+Unix, MSVC's `link.exe` on Windows, and — additionally on Linux — `lld`, because SteelMC's config
+links with `-Clink-arg=-fuse-ld=lld`. A missing piece is only a warning with a platform hint
+(`nix-shell -p gcc lld` on NixOS), not a hard error.
+
 ## Files it writes
 
 | Path | When |
@@ -131,7 +158,7 @@ inspect `cargo`'s output or rerun there; the next attempt deletes and recreates 
 | `... has no build for linux x86_64` | the release has no asset whose name starts with `steel-linux`; check the release page |
 | PR build fails immediately with 404 | wrong PR number, or the PR is from a fork whose head is gone |
 | ``the option `Z` is only accepted on the nightly compiler`` | a pinned toolchain was selected but its `rustc` was not used; reinstall the helper so `RUSTC` is pinned |
-| `linker 'cc' not found` | no C compiler or linker on `PATH`; install your platform's build tools |
+| `linker 'cc' not found` (or `'lld' not found`) | no C compiler/linker on `PATH`; on NixOS run the helper from `nix-shell -p gcc lld`, elsewhere install `build-essential` + `lld` (Debian/Ubuntu) or `gcc` + `lld` (Fedora/Alpine); the helper warns about all of these up front now |
 | `Could not fetch releases` | offline, or the unauthenticated GitHub rate limit was hit |
 | source build says `cargo finished but ... is missing` | the workspace layout changed and no binary named `steel` is produced |
 

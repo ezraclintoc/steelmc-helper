@@ -97,6 +97,67 @@ fn exe(name: &str) -> String {
     format!("{name}{}", env::consts::EXE_SUFFIX)
 }
 
+// --- linker prerequisites ----------------------------------------------------
+
+// `rustc` shells the link step out to a platform-specific driver: `cc` (gcc or
+// clang) on Unix, MSVC's `link.exe` on Windows. SteelMC's Linux config also
+// passes `-Clink-arg=-fuse-ld=lld`, so `lld` has to be on PATH there.
+fn find_on_path(name: &str) -> bool {
+    let exe = exe(name);
+    let Some(paths) = env::var_os("PATH") else {
+        return false;
+    };
+    env::split_paths(&paths)
+        .filter(|dir| !dir.as_os_str().is_empty())
+        .any(|dir| dir.join(&exe).is_file())
+}
+
+fn on_nixos() -> bool {
+    fs::read_to_string("/etc/os-release")
+        .is_ok_and(|text| text.lines().any(|line| line == "ID=nixos"))
+}
+
+/// Advisory pre-flight probe for what `rustc` links with. Returns an install
+/// hint naming what is missing, or `None` when the platform's default tooling
+/// is in place. Probes can false-negative (rustc locates MSVC's `link.exe` via
+/// the Visual Studio registry, not PATH), so callers only warn.
+pub fn linker_hint() -> Option<String> {
+    if cfg!(windows) {
+        let vswhere = "C:/Program Files (x86)/Microsoft Visual Studio/Installer/vswhere.exe";
+        if Path::new(vswhere).is_file() || find_on_path("cl") || find_on_path("link") {
+            return None;
+        }
+        return Some(
+            "MSVC's linker `link.exe` is not set up. Install Visual Studio Build Tools with the \"Desktop development with C++\" workload."
+                .to_string(),
+        );
+    }
+
+    if !(find_on_path("cc") || find_on_path("gcc") || find_on_path("clang")) {
+        return Some(
+            if on_nixos() {
+                "no C toolchain on PATH. Run the helper from `nix-shell -p gcc lld`, or add `gcc` and `lld` to your flake's devShell / systemPackages and rebuild."
+            } else {
+                "no C toolchain on PATH. Install one (Ubuntu/Debian: `sudo apt install build-essential`; Fedora: `sudo dnf install gcc`; Alpine: `apk add build-base`)."
+            }
+            .to_string(),
+        );
+    }
+
+    if cfg!(target_os = "linux") && !find_on_path("lld") {
+        return Some(
+            if on_nixos() {
+                "`lld` is missing; SteelMC links with it on Linux (`-Clink-arg=-fuse-ld=lld`). Run the helper from `nix-shell -p gcc lld`, or add `lld` to your flake and rebuild."
+            } else {
+                "`lld` is missing; SteelMC links with it on Linux (`-Clink-arg=-fuse-ld=lld`). Install it (Ubuntu/Debian: `sudo apt install lld`; Fedora: `sudo dnf install lld`)."
+            }
+            .to_string(),
+        );
+    }
+
+    None
+}
+
 // `rust-toolchain.toml` (channel = "...") or the legacy plain `rust-toolchain`.
 fn pinned_channel(directory: &Path) -> Option<String> {
     if let Ok(text) = fs::read_to_string(directory.join("rust-toolchain.toml")) {
@@ -240,6 +301,22 @@ fn install_windows() -> io::Result<std::process::ExitStatus> {
             &script,
         ])
         .status()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn find_on_path_rejects_unknown_binaries() {
+        assert!(!find_on_path("definitely-not-a-tool-42"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn find_on_path_finds_sh() {
+        assert!(find_on_path("sh"));
+    }
 }
 
 /// Feature flags of one workspace member, as Cargo sees them.
