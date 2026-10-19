@@ -123,39 +123,48 @@ fn on_nixos() -> bool {
 /// the Visual Studio registry, not PATH), so callers only warn.
 pub fn linker_hint() -> Option<String> {
     if cfg!(windows) {
-        let vswhere = "C:/Program Files (x86)/Microsoft Visual Studio/Installer/vswhere.exe";
-        if Path::new(vswhere).is_file() || find_on_path("cl") || find_on_path("link") {
-            return None;
-        }
-        return Some(
-            "MSVC's linker `link.exe` is not set up. Install Visual Studio Build Tools with the \"Desktop development with C++\" workload."
-                .to_string(),
-        );
+        return msvc_hint();
     }
-
-    if !(find_on_path("cc") || find_on_path("gcc") || find_on_path("clang")) {
-        return Some(
-            if on_nixos() {
-                "no C toolchain on PATH. Run the helper from `nix-shell -p gcc lld`, or add `gcc` and `lld` to your flake's devShell / systemPackages and rebuild."
-            } else {
-                "no C toolchain on PATH. Install one (Ubuntu/Debian: `sudo apt install build-essential`; Fedora: `sudo dnf install gcc`; Alpine: `apk add build-base`)."
-            }
-            .to_string(),
-        );
+    if no_c_driver() {
+        return Some(c_driver_hint());
     }
-
     if cfg!(target_os = "linux") && !find_on_path("lld") {
-        return Some(
-            if on_nixos() {
-                "`lld` is missing; SteelMC links with it on Linux (`-Clink-arg=-fuse-ld=lld`). Run the helper from `nix-shell -p gcc lld`, or add `lld` to your flake and rebuild."
-            } else {
-                "`lld` is missing; SteelMC links with it on Linux (`-Clink-arg=-fuse-ld=lld`). Install it (Ubuntu/Debian: `sudo apt install lld`; Fedora: `sudo dnf install lld`)."
-            }
-            .to_string(),
-        );
+        return Some(lld_hint());
     }
-
     None
+}
+
+fn no_c_driver() -> bool {
+    !(find_on_path("cc") || find_on_path("gcc") || find_on_path("clang"))
+}
+
+fn msvc_hint() -> Option<String> {
+    let vswhere = "C:/Program Files (x86)/Microsoft Visual Studio/Installer/vswhere.exe";
+    if Path::new(vswhere).is_file() || find_on_path("cl") || find_on_path("link") {
+        return None;
+    }
+    Some(
+        "MSVC's linker `link.exe` is not set up. Install Visual Studio Build Tools with the \"Desktop development with C++\" workload."
+            .to_string(),
+    )
+}
+
+fn c_driver_hint() -> String {
+    if on_nixos() {
+        "no C toolchain on PATH. Run the helper from `nix-shell -p gcc lld`, or add `gcc` and `lld` to your flake's devShell / systemPackages and rebuild."
+    } else {
+        "no C toolchain on PATH. Install one (Ubuntu/Debian: `sudo apt install build-essential`; Fedora: `sudo dnf install gcc`; Alpine: `apk add build-base`)."
+    }
+    .to_string()
+}
+
+fn lld_hint() -> String {
+    if on_nixos() {
+        "`lld` is missing; SteelMC links with it on Linux (`-Clink-arg=-fuse-ld=lld`). Run the helper from `nix-shell -p gcc lld`, or add `lld` to your flake and rebuild."
+    } else {
+        "`lld` is missing; SteelMC links with it on Linux (`-Clink-arg=-fuse-ld=lld`). Install it (Ubuntu/Debian: `sudo apt install lld`; Fedora: `sudo dnf install lld`)."
+    }
+    .to_string()
 }
 
 // `rust-toolchain.toml` (channel = "...") or the legacy plain `rust-toolchain`.
@@ -391,9 +400,10 @@ pub struct BuildOptions<'a> {
     pub features: &'a [&'a str],
     pub no_default_features: bool,
     pub package: Option<&'a str>,
-    pub release: bool,
 }
 
+/// Build (always in release mode; the helper installs a server binary) and
+/// return the directory holding the built artifact.
 pub fn cargo_build(directory: impl AsRef<Path>, options: &BuildOptions<'_>) -> io::Result<PathBuf> {
     let directory = directory.as_ref();
     let manifest = directory.join("Cargo.toml");
@@ -440,5 +450,5 @@ pub fn cargo_build(directory: impl AsRef<Path>, options: &BuildOptions<'_>) -> i
             }
         })
         .unwrap_or_else(|| directory.join("target"));
-    Ok(target.join(if options.release { "release" } else { "debug" }))
+    Ok(target.join("release"))
 }
