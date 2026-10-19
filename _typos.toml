@@ -1,0 +1,5 @@
+# typos configuration for steelmc-helper, mirroring SteelMC's _typos.toml
+
+[default.extend-words]
+# The `flate2` crate's name is flate, not a typo for "flat".
+flate = "flate"
