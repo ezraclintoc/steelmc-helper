@@ -164,31 +164,7 @@ inspect `cargo`'s output or rerun there; the next attempt deletes and recreates 
 | `Could not fetch releases` | offline, or the unauthenticated GitHub rate limit was hit |
 | source build says `cargo finished but ... is missing` | the workspace layout changed and no binary named `steel` is produced |
 
-## How it is organized
-
-| Module | Job |
-| --- | --- |
-| [`src/main.rs`](src/main.rs) | every prompt, spinner, progress bar and message; orchestrates the two modes |
-| [`src/fetch.rs`](src/fetch.rs) | release listing, OS asset matching, tarball downloads and extraction, PR CI lookup |
-| [`src/build.rs`](src/build.rs) | find/install `cargo` and `rustc`, resolve the pinned toolchain, list features, run `cargo build` |
-
-HTTP and TLS come from [`self_update`](https://crates.io/crates/self_update) (ureq + rustls);
-`flate2`/`tar` unpack source tarballs; `serde_json` parses `cargo metadata` and the check-runs
-response; UI is [`cliclack`](https://crates.io/crates/cliclack).
-
-Two things in `self_update` 1.3.1 are worth knowing if you edit `fetch.rs`:
-
-- `ReleaseAsset::download_url()` returns the **API** URL, which serves JSON metadata unless the
-  request sends `Accept: application/octet-stream`. `fetch::download` sets that header.
-- `asset_for()` matches on a target triple or arch+OS substring, but these assets are named
-  `steel-linux` etc., so matching is hand-written.
-
 ## Development
 
-```console
-cargo build
-cargo clippy --all-targets -- -D warnings
-```
-
-Both should be warning-free. The tool is tested on Linux; the Windows and macOS paths
-(asset selection, `chmod` being a no-op, rustup resolution) have not been exercised.
+Want to contribute? [CONTRIBUTING.md](CONTRIBUTING.md) has the module map, the
+`self_update` gotchas, and how the release binary is kept small.
