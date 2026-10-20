@@ -35,7 +35,10 @@ $ steelmc-helper
 ![Installing steelmc-helper with one curl command](docs/steelmc-install-demo.gif)
 
 The installer detects your OS and CPU, downloads the matching release asset, verifies its
-SHA256 against the published checksum file, and installs to `~/.local/bin`. Flags: `--to <dir>`
+SHA256 against the published checksum file, and installs to `~/.local/bin` — then, in an
+interactive terminal, offers to start the helper right away and to remove it again when you're
+done with it. In a non-interactive pipe it just installs and prints how to run the tool later.
+Flags: `--to <dir>`
 (pick a different prefix), `--nightly` (rolling nightly
 instead of the latest release). Releases ship **x86_64 Linux, Apple-silicon macOS, and x86_64
 Windows**; anything else (Intel macs, musl systems, other architectures) builds from source with

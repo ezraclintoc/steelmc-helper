@@ -119,3 +119,27 @@ case ":$PATH:" in
 esac
 
 printf '\nInstalled %s/%s.\nRun it from any directory:\n\n  %s\n' "$TO" "$BIN" "$BIN"
+
+# In an interactive shell, offer to run the helper right away; in a pipe
+# (curl | sh) stdin is the script itself, so launching the binary would eat
+# the rest of the download. The wrapper below gives it your real stdin/stdout.
+if [ -t 0 ]; then
+    printf 'Start it now? [Y/n] '
+    read -r reply
+    case "$reply" in
+        [nN]*) exit 0 ;;
+    esac
+    case ":$PATH:" in
+        *":$TO:"*) ;;
+        *) PATH="$TO:$PATH" ;;
+    esac
+    "$TO/$BIN" || exit $?
+
+    # After the helper exits, ask once whether to keep it installed.
+    printf 'Keep steelmc-helper installed? [Y/n] '
+    read -r reply
+    case "$reply" in
+        [nN]*) rm -f "$TO/$BIN" && printf 'Removed %s/%s.\n' "$TO" "$BIN" ;;
+        *) printf 'Keeping %s/%s.\n' "$TO" "$BIN" ;;
+    esac
+fi
