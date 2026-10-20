@@ -187,12 +187,7 @@ fn pinned_channel(directory: &Path) -> Option<String> {
 }
 
 fn toolchain_dir(channel: &str) -> Option<PathBuf> {
-    let home = env::var_os("RUSTUP_HOME")
-        .map(PathBuf::from)
-        .or_else(|| env::var_os("USERPROFILE").map(|home| PathBuf::from(home).join(".rustup")))
-        .or_else(|| env::var_os("HOME").map(|home| PathBuf::from(home).join(".rustup")))?;
-
-    fs::read_dir(home.join("toolchains"))
+    fs::read_dir(rustup_home()?.join("toolchains"))
         .ok()?
         .filter_map(|entry| entry.ok())
         .map(|entry| entry.path())
@@ -201,6 +196,34 @@ fn toolchain_dir(channel: &str) -> Option<PathBuf> {
             (name == channel || name.starts_with(&format!("{channel}-")))
                 && path.join("bin").join(exe("cargo")).is_file()
         })
+}
+
+fn rustup_home() -> Option<PathBuf> {
+    env::var_os("RUSTUP_HOME")
+        .map(PathBuf::from)
+        .or_else(|| env::var_os("USERPROFILE").map(|home| PathBuf::from(home).join(".rustup")))
+        .or_else(|| env::var_os("HOME").map(|home| PathBuf::from(home).join(".rustup")))
+}
+
+/// The channel the source pins if it is not installed, so the caller can offer
+/// to install it before the build fails confusingly at link-config time.
+pub fn missing_channel(directory: &Path) -> Option<String> {
+    let channel = pinned_channel(directory)?;
+    (!toolchain_dir(&channel).is_some()).then_some(channel)
+}
+
+/// Install a toolchain channel via rustup, e.g. the pinned nightly.
+pub fn install_toolchain(channel: &str) -> io::Result<()> {
+    let status = Command::new("rustup")
+        .args(["toolchain", "install", channel, "--profile", "minimal"])
+        .status()
+        .map_err(|err| io::Error::other(format!("could not run rustup: {err}")))?;
+    if !status.success() {
+        return Err(io::Error::other(format!(
+            "rustup toolchain install {channel} failed ({status})"
+        )));
+    }
+    Ok(())
 }
 
 fn rustup_which(rustup: &Path, channel: &str, tool: &str) -> Option<PathBuf> {

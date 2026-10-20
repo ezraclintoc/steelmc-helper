@@ -125,6 +125,8 @@ fn build_source(label: &str, url: &str, tag: &str, dest: &Path) -> Result<()> {
     save(url, &archive, format!("Downloading {label}"))?;
     let root = fetch::extract_tarball(&archive, &work.join("src"))?;
 
+    ensure_pinned_toolchain(&root)?;
+
     let (features, custom) = choose_features(&root)?;
     let features: Vec<&str> = features.iter().map(String::as_str).collect();
     let options = BuildOptions {
@@ -158,6 +160,31 @@ fn build_source(label: &str, url: &str, tag: &str, dest: &Path) -> Result<()> {
 }
 
 type Installer = fn() -> std::io::Result<()>;
+
+/// SteelMC pins a channel in `rust-toolchain.toml` (currently a nightly). Ask
+/// once if it is missing, instead of failing confusingly deep in cargo.
+fn ensure_pinned_toolchain(root: &Path) -> Result<()> {
+    if build::missing_channel(root).is_none() {
+        return Ok(());
+    }
+    let channel = build::missing_channel(root).unwrap_or_default();
+
+    if !confirm(format!(
+        "Pinned toolchain `{channel}` is not installed. Download it now? (a few hundred MB, one time)"
+    ))
+    .initial_value(true)
+    .interact()?
+    {
+        return Err(format!(
+            "{channel} is required to build this source; install it with `rustup toolchain install {channel}`"
+        )
+        .into());
+    }
+    build::install_toolchain(&channel).map_err(|err| -> Box<dyn std::error::Error> {
+        format!("installing {channel} failed: {err}").into()
+    })?;
+    Ok(())
+}
 
 fn ensure_toolchain() -> Result<()> {
     let tools: [(&str, Installer); 2] = [
