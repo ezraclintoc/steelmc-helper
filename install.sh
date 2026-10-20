@@ -4,7 +4,7 @@
 #   curl -fsSL https://raw.githubusercontent.com/ezraclintoc/steelmc-helper/main/install.sh | sh
 #
 # Flags: --to DIR (install prefix, default ~/.local/bin), --nightly (nightly
-# release instead of the latest stable one), --musl (static Linux build).
+# release instead of the latest stable one).
 # Override STEELMC_HELPER_BASE to install from a non-default location.
 set -eu
 
@@ -12,10 +12,9 @@ REPO="ezraclintoc/steelmc-helper"
 BIN="steelmc-helper"
 TO="$HOME/.local/bin"
 REF="latest"
-TARGET_SUFFIX="gnu"
 
 help() {
-    sed -n '2,9p' "$0"
+    sed -n '2,8p' "$0"
     exit 0
 }
 
@@ -24,7 +23,6 @@ while [ "$#" -gt 0 ]; do
         --to) TO="$2"; shift 2 ;;
         --to=*) TO="${1#*=}"; shift ;;
         --nightly) REF="nightly"; shift ;;
-        --musl) TARGET_SUFFIX="musl"; shift ;;
         -h|--help) help ;;
         *) printf >&2 'unknown flag: %s\n' "$1"; exit 64 ;;
     esac
@@ -33,8 +31,7 @@ done
 # --- what build do we need? --------------------------------------------------
 
 case "$(uname -s)" in
-    Linux) ;;
-    Darwin) ;;
+    Linux | Darwin) ;;
     *) # shellcheck disable=SC2016
         printf >&2 'install.sh supports Linux and macOS; on Windows run `cargo install --git https://github.com/%s` instead.\n' "$REPO"; exit 1 ;;
 esac
@@ -46,20 +43,15 @@ case "$ARCH" in
     *) printf >&2 'unsupported architecture: %s\n' "$ARCH"; exit 1 ;;
 esac
 
-ASSET="$BIN-$ARCH-unknown-linux-$TARGET_SUFFIX"
+ASSET="$BIN-$ARCH-unknown-linux-gnu"
 case "$(uname -s)" in
     Darwin)
-        case "$ARCH" in
-            x86_64) ASSET="$BIN-x86_64-apple-darwin" ;;
-            aarch64) ASSET="$BIN-aarch64-apple-darwin" ;;
-        esac
-        ;;
-    Linux)
-        # Archaic musl systems would fail to load the glibc build; prefer the
-        # static one automatically, --musl forces it anywhere.
-        if [ "$TARGET_SUFFIX" != "musl" ] && ldd --version 2>/dev/null | grep -qi musl; then
-            ASSET="$BIN-$ARCH-unknown-linux-musl"
+        # Releases ship an Apple-silicon build only; Intel macs use cargo.
+        if [ "$ARCH" != "aarch64" ]; then
+            # shellcheck disable=SC2016
+            printf >&2 'no release asset for Intel macs; run `cargo install --git https://github.com/%s` instead.\n' "$REPO"; exit 1
         fi
+        ASSET="$BIN-aarch64-apple-darwin"
         ;;
 esac
 
