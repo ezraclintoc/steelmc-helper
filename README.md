@@ -23,14 +23,7 @@ cleanly. Everything is written into the directory you run it from.
 
 Install the tool itself, then run it — it prompts for everything else:
 
-```console
-$ curl -fsSL https://raw.githubusercontent.com/ezraclintoc/steelmc-helper/main/install.sh | sh
-Installed ~/.local/bin/steelmc-helper.
-Run it from any directory:
-
-  steelmc-helper
-$ steelmc-helper
-```
+![Installing steelmc-helper with one curl command](docs/steelmc-install-demo.gif)
 
 The installer detects your OS and CPU, downloads the matching release asset, verifies its
 SHA256 against the published checksum file, and installs to `~/.local/bin`. Flags: `--to <dir>`
