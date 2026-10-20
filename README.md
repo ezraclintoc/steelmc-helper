@@ -131,11 +131,15 @@ Pinning `RUSTC` matters: Cargo otherwise resolves `rustc` from `PATH`, so a stab
 directory in front of rustup's proxy would still win. With both pinned, the build is unaffected by
 `PATH` order or an exported `RUSTUP_TOOLCHAIN`.
 
-If the pinned channel is not installed, the error says so instead of failing confusingly:
+If the pinned channel is not installed, the tool asks before the build runs:
 
 ```
-pinned toolchain `nightly-2026-08-21` is not installed (rustup toolchain install nightly-2026-08-21)
+Pinned toolchain `nightly-2026-08-21` is not installed. Download it now?(a few hundred MB, one time)
 ```
+
+Saying yes runs `rustup toolchain install nightly-2026-08-21 --profile minimal` and the build
+proceeds; declining aborts with the rustup command to run yourself. A source build therefore
+works on a machine that has never had that specific nightly before.
 
 Before downloading anything the tool also probes what the linker needs: `cc`/`gcc`/`clang` on
 Unix, MSVC's `link.exe` on Windows, and — additionally on Linux — `lld`, because SteelMC's config
