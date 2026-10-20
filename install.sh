@@ -1,27 +1,27 @@
 #!/bin/sh
-# steelmc-helper installer.
+# steelmc-helper one-shot launcher.
 #
 #   curl -fsSL https://raw.githubusercontent.com/ezraclintoc/steelmc-helper/main/install.sh | sh
 #
-# Flags: --to DIR (install prefix, default ~/.local/bin), --nightly (nightly
-# release instead of the latest stable one).
-# Override STEELMC_HELPER_BASE to install from a non-default location.
+# Downloads the latest release binary into a temporary directory, runs it
+# once, then deletes it. Nothing is installed. For a persistent install:
+#   cargo install --git https://github.com/ezraclintoc/steelmc-helper
+#
+# Flag: --nightly (rolling nightly release instead of the latest stable one).
+# Override STEELMC_HELPER_BASE to download from a non-default location.
 set -eu
 
 REPO="ezraclintoc/steelmc-helper"
 BIN="steelmc-helper"
-TO="$HOME/.local/bin"
 REF="latest"
 
 help() {
-    sed -n '2,8p' "$0"
+    sed -n '2,9p' "$0"
     exit 0
 }
 
 while [ "$#" -gt 0 ]; do
     case "$1" in
-        --to) TO="$2"; shift 2 ;;
-        --to=*) TO="${1#*=}"; shift ;;
         --nightly) REF="nightly"; shift ;;
         -h|--help) help ;;
         *) printf >&2 'unknown flag: %s\n' "$1"; exit 64 ;;
@@ -55,7 +55,7 @@ case "$(uname -s)" in
         ;;
 esac
 
-# --- fetch -------------------------------------------------------------------
+# --- download, verify, unpack ------------------------------------------------
 
 BASE="${STEELMC_HELPER_BASE:-https://github.com/$REPO/releases}"
 URL="$BASE/$REF/download/$ASSET.tar.gz"
@@ -73,15 +73,14 @@ fetch() {
     fi
 }
 
-TMPDIR_INSTALL="$(mktemp -d)"
-trap 'rm -rf "$TMPDIR_INSTALL"' EXIT
+WORK="$(mktemp -d)"
+trap 'rm -rf "$WORK"' EXIT
 
-printf 'Downloading %s -> %s/steelmc-helper\n' "$URL" "$TO"
-mkdir -p "$TO"
-fetch "$URL" "$TMPDIR_INSTALL/$ASSET.tar.gz"
-fetch "$URL.sha256" "$TMPDIR_INSTALL/$ASSET.tar.gz.sha256"
+printf 'Downloading steelmc-helper (%s)\n' "$URL"
+fetch "$URL" "$WORK/$ASSET.tar.gz"
+fetch "$URL.sha256" "$WORK/$ASSET.tar.gz.sha256"
 
-(cd "$TMPDIR_INSTALL" &&
+(cd "$WORK" &&
  {
      if command -v sha256sum >/dev/null 2>&1; then
          SUM="$(cut -d' ' -f1 < "$ASSET.tar.gz.sha256")"
@@ -95,71 +94,30 @@ fetch "$URL.sha256" "$TMPDIR_INSTALL/$ASSET.tar.gz.sha256"
      fi
  } ) || { printf >&2 'checksum mismatch; aborting\n'; exit 65; }
 
-tar -xzf "$TMPDIR_INSTALL/$ASSET.tar.gz" -C "$TMPDIR_INSTALL"
-[ -f "$TMPDIR_INSTALL/$BIN" ] || { printf >&2 'archive did not contain %s\n' "$BIN"; exit 1; }
+tar -xzf "$WORK/$ASSET.tar.gz" -C "$WORK"
+[ -f "$WORK/$BIN" ] || { printf >&2 'archive did not contain %s\n' "$BIN"; exit 1; }
+chmod +x "$WORK/$BIN"
 
-if [ -f "$TO/$BIN" ] && [ -t 0 ]; then
-    printf '%s/steelmc-helper exists; overwrite? [y/N] ' "$TO"
-    read -r reply
-    case "$reply" in
-        [yY]*) ;;
-        *) printf >&2 'not overwritten; exiting\n'; exit 1 ;;
-    esac
-fi
-
-cat "$TMPDIR_INSTALL/$BIN" > "$TO/$BIN"
-chmod +x "$TO/$BIN"
-
-# --- what's next? ------------------------------------------------------------
-
-case ":$PATH:" in
-    *":$TO:"*) ;;
-    *) # shellcheck disable=SC2016
-        printf '\nWARNING: %s is not on PATH. Add this to your shell profile:\n\n  export PATH="%s:$PATH"\n\n' "$TO" "$TO" ;;
-esac
-
-printf '\nInstalled %s/%s.\nRun it from any directory:\n\n  %s\n' "$TO" "$BIN" "$BIN"
-
-# Offer to run the helper right away when the user is at a terminal. The
-# interactive check must use /dev/tty, not [ -t 0 ]: under `curl | sh` fd 0 is
-# the pipe carrying this script even though the user's terminal is open.
-# Test interactivity without an exec in a compound command (a failing
-# redirect-only exec is fatal in some shells, and an if-condition redirect is
-# scoped to the condition): open a probe fd in a subshell, then the real fd 3
-# inside the body.
-CAN_TTY=0
-# fd 3 exists only inside the subshell, so the is-a-tty check must happen
-# there: the subshell exits true only when /dev/tty opens AND is a tty.
+# --- run it ------------------------------------------------------------------
+#
+# The helper talks to a terminal. Detect one with /dev/tty, not fd 0: under
+# `curl | sh` fd 0 is the pipe carrying this script even though the user's
+# terminal is open. The probe must be a subshell (a failing redirect-only exec
+# is fatal in some shells) and the is-a-tty check must happen inside it, where
+# fd 3 actually exists.
 if (exec 3</dev/tty && [ -t 3 ]) 2>/dev/null; then
-    CAN_TTY=1
-fi
-if [ "$CAN_TTY" = 1 ]; then
     exec 3</dev/tty
-    # prompt <text> <reply-var>: read from the user's terminal, not the pipe
-    prompt() {
-        printf '%s' "$1"
-        # shellcheck disable=SC2229
-        read -r "$2" <&3
-    }
-
-    prompt 'Start it now? [Y/n] ' REPLY_START || exit 0
-    case "$REPLY_START" in
-        [nN]*) exit 0 ;;
-    esac
-    case ":$PATH:" in
-        *":$TO:"*) ;;
-        *) PATH="$TO:$PATH" ;;
-    esac
-    # fd 0 belongs to curl, so hand the helper the terminal directly.
-    # The helper may exit non-zero (Esc cancels as exit 1); capture without
-    # tripping set -e.
-    HELPER_STATUS=0
-    "$TO/$BIN" <&3 >&2 2>&2 || HELPER_STATUS=$?
-
-    prompt 'Keep steelmc-helper installed? [Y/n] ' REPLY_KEEP || exit 0
-    case "$REPLY_KEEP" in
-        [nN]*) rm -f "$TO/$BIN" && printf 'Removed %s/%s.\n' "$TO" "$BIN" ;;
-        *) printf 'Keeping %s/%s.\n' "$TO" "$BIN" ;;
-    esac
-    exit "$HELPER_STATUS"
+    # fd 0 belongs to curl, so hand the helper the terminal directly. The
+    # helper may exit non-zero (Esc cancels as exit 1); `||` keeps the status.
+    STATUS=0
+    "$WORK/$BIN" <&3 >&2 2>&2 || STATUS=$?
+    exec 3<&-
+    exit "$STATUS"
 fi
+
+# No terminal (CI, curl | sh in a bare shell): the helper's UI needs one.
+printf >&2 'No terminal detected; steelmc-helper needs an interactive shell.\n'
+printf >&2 'Install it permanently instead:\n'
+# shellcheck disable=SC2016
+printf >&2 '  cargo install --git https://github.com/%s\n' "$REPO"
+exit 1
