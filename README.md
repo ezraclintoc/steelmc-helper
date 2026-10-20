@@ -36,8 +36,9 @@ $ steelmc-helper
 
 The installer detects your OS and CPU, downloads the matching release asset, verifies its
 SHA256 against the published checksum file, and installs to `~/.local/bin`. Flags: `--to <dir>`
-(pick a different prefix), `--musl` (force the static Linux build), `--nightly` (rolling nightly
-instead of the latest release). On Windows build from source with
+(pick a different prefix), `--nightly` (rolling nightly
+instead of the latest release). Releases ship **x86_64 Linux, Apple-silicon macOS, and x86_64
+Windows**; anything else (Intel macs, musl systems, other architectures) builds from source with
 `cargo install --git https://github.com/ezraclintoc/steelmc-helper` instead.
 
 You already have Rust? `cargo install --git https://github.com/ezraclintoc/steelmc-helper` works
@@ -53,9 +54,8 @@ from any platform.
 ### Prebuilt binary
 
 1. Choose the latest or previous release.
-2. On x86_64 Linux, choose the glibc or the static musl build; other platforms have one asset.
-3. The file keeps its release name (`steel-linux`, `steel-linux-musl`, `steel-macos`,
-   `steel-windows.exe`), is marked executable on Unix, and the tool prints how to run it.
+2. You receive the one asset for your platform (`steel-linux`, `steel-macos`,
+   `steel-windows.exe`), marked executable on Unix, and the tool prints how to run it.
 
 ```console
 $ ./steel-linux
@@ -150,7 +150,7 @@ links with `-Clink-arg=-fuse-ld=lld`. A missing piece is only a warning with a p
 
 | Path | When |
 | --- | --- |
-| `./steel-linux`, `./steel-linux-musl`, `./steel-macos`, `./steel-windows.exe` | prebuilt download |
+| `./steel-linux`, `./steel-macos`, `./steel-windows.exe` | prebuilt download |
 | `./steel` | source build |
 | `.steel-src-<tag>/` | source build scratch space, removed on success and kept on failure |
 

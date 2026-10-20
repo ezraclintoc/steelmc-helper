@@ -323,15 +323,11 @@ fn pick_asset(release: &Release) -> Result<ReleaseAsset> {
         }
         1 => Ok(candidates.into_iter().next().unwrap()),
         _ => {
-            // e.g. on x86_64 Linux: steel-linux (glibc) vs steel-linux-musl (static)
+            // More than one match: the release added a variant this helper's
+            // platform table doesn't know about. Still offer them rather than fail.
             let mut prompt = select("Which build?");
             for (i, asset) in candidates.iter().enumerate() {
-                let hint = if asset.name().ends_with("musl") {
-                    "static"
-                } else {
-                    "glibc"
-                };
-                prompt = prompt.item(i, asset.name(), hint);
+                prompt = prompt.item(i, asset.name(), "");
             }
             let choice = prompt.interact()?;
             Ok(candidates.into_iter().nth(choice).unwrap())

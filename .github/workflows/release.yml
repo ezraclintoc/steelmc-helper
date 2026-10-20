@@ -1,4 +1,4 @@
-# Builds release binaries for every supported target when a vX.Y.Z tag is
+# Builds release binaries for the supported targets when a vX.Y.Z tag is
 # pushed, then attaches archives and per-file .sha256 checksums to a GitHub
 # release for that tag.
 name: release binaries
@@ -18,12 +18,8 @@ jobs:
       matrix:
         include:
           - { target: x86_64-unknown-linux-gnu, runner: ubuntu-latest }
-          - { target: x86_64-unknown-linux-musl, runner: ubuntu-latest }
-          - { target: aarch64-unknown-linux-gnu, runner: ubuntu-24.04-arm }
-          - { target: aarch64-unknown-linux-musl, runner: ubuntu-24.04-arm }
           - { target: x86_64-pc-windows-msvc, runner: windows-latest }
           - { target: aarch64-apple-darwin, runner: macos-latest }
-          - { target: x86_64-apple-darwin, runner: macos-26-intel }
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v7

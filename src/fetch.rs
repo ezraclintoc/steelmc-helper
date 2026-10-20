@@ -60,7 +60,7 @@ impl Platform {
     /// Prefix of this platform's assets; `None` means there is no build for it.
     fn asset_prefix(self) -> Option<&'static str> {
         match self {
-            Self::Linux => Some("steel-linux"), // gnu and musl
+            Self::Linux => Some("steel-linux"),
             Self::Macos => Some("steel-macos"),
             Self::Windows => Some("steel-windows"),
             Self::Other => None,
