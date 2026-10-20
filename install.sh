@@ -128,7 +128,9 @@ printf '\nInstalled %s/%s.\nRun it from any directory:\n\n  %s\n' "$TO" "$BIN" "
 # scoped to the condition): open a probe fd in a subshell, then the real fd 3
 # inside the body.
 CAN_TTY=0
-if (exec 3</dev/tty) 2>/dev/null && { [ -t 0 ] || [ -t 3 ]; }; then
+# fd 3 exists only inside the subshell, so the is-a-tty check must happen
+# there: the subshell exits true only when /dev/tty opens AND is a tty.
+if (exec 3</dev/tty && [ -t 3 ]) 2>/dev/null; then
     CAN_TTY=1
 fi
 if [ "$CAN_TTY" = 1 ]; then
