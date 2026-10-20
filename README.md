@@ -25,23 +25,22 @@ Install the tool itself, then run it — it prompts for everything else:
 
 ```console
 $ curl -fsSL https://raw.githubusercontent.com/ezraclintoc/steelmc-helper/main/install.sh | sh
-Installed ~/.local/bin/steelmc-helper.
-Run it from any directory:
-
-  steelmc-helper
-$ steelmc-helper
+Downloading steelmc-helper (https://github.com/ezraclintoc/steelmc-helper/releases/latest/download/steelmc-helper-x86_64-unknown-linux-gnu.tar.gz)
+┌  SteelMC downloader
+│
+◆  How do you want to install?
+...
 ```
 
 ![Installing steelmc-helper with one curl command](docs/steelmc-install-demo.gif)
 
-The installer detects your OS and CPU, downloads the matching release asset, verifies its
-SHA256 against the published checksum file, and installs to `~/.local/bin` — then, in an
-interactive terminal, offers to start the helper right away and to remove it again when you're
-done with it. In a non-interactive pipe it just installs and prints how to run the tool later.
-Flags: `--to <dir>`
-(pick a different prefix), `--nightly` (rolling nightly
-instead of the latest release). Releases ship **x86_64 Linux, Apple-silicon macOS, and x86_64
-Windows**; anything else (Intel macs, musl systems, other architectures) builds from source with
+The installer is a **one-shot launcher**: it downloads the matching release binary into a temporary
+directory, verifies its SHA256, runs the helper once in your terminal, and deletes the temp
+directory on the way out — nothing is installed. In a non-interactive shell (no terminal) it
+exits with a pointer to `cargo install` instead.
+Flag: `--nightly` (rolling nightly instead of the latest release). Releases ship **x86_64 Linux,
+Apple-silicon macOS, and x86_64 Windows**; anything else (Intel macs, other architectures) builds
+from source with
 `cargo install --git https://github.com/ezraclintoc/steelmc-helper` instead.
 
 You already have Rust? `cargo install --git https://github.com/ezraclintoc/steelmc-helper` works
