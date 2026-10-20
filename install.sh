@@ -120,26 +120,44 @@ esac
 
 printf '\nInstalled %s/%s.\nRun it from any directory:\n\n  %s\n' "$TO" "$BIN" "$BIN"
 
-# In an interactive shell, offer to run the helper right away; in a pipe
-# (curl | sh) stdin is the script itself, so launching the binary would eat
-# the rest of the download. The wrapper below gives it your real stdin/stdout.
-if [ -t 0 ]; then
-    printf 'Start it now? [Y/n] '
-    read -r reply
-    case "$reply" in
+# Offer to run the helper right away when the user is at a terminal. The
+# interactive check must use /dev/tty, not [ -t 0 ]: under `curl | sh` fd 0 is
+# the pipe carrying this script even though the user's terminal is open.
+# Test interactivity without an exec in a compound command (a failing
+# redirect-only exec is fatal in some shells, and an if-condition redirect is
+# scoped to the condition): open a probe fd in a subshell, then the real fd 3
+# inside the body.
+CAN_TTY=0
+if (exec 3</dev/tty) 2>/dev/null && { [ -t 0 ] || [ -t 3 ]; }; then
+    CAN_TTY=1
+fi
+if [ "$CAN_TTY" = 1 ]; then
+    exec 3</dev/tty
+    # prompt <text> <reply-var>: read from the user's terminal, not the pipe
+    prompt() {
+        printf '%s' "$1"
+        # shellcheck disable=SC2229
+        read -r "$2" <&3
+    }
+
+    prompt 'Start it now? [Y/n] ' REPLY_START || exit 0
+    case "$REPLY_START" in
         [nN]*) exit 0 ;;
     esac
     case ":$PATH:" in
         *":$TO:"*) ;;
         *) PATH="$TO:$PATH" ;;
     esac
-    "$TO/$BIN" || exit $?
+    # fd 0 belongs to curl, so hand the helper the terminal directly.
+    # The helper may exit non-zero (Esc cancels as exit 1); capture without
+    # tripping set -e.
+    HELPER_STATUS=0
+    "$TO/$BIN" <&3 >&2 2>&2 || HELPER_STATUS=$?
 
-    # After the helper exits, ask once whether to keep it installed.
-    printf 'Keep steelmc-helper installed? [Y/n] '
-    read -r reply
-    case "$reply" in
+    prompt 'Keep steelmc-helper installed? [Y/n] ' REPLY_KEEP || exit 0
+    case "$REPLY_KEEP" in
         [nN]*) rm -f "$TO/$BIN" && printf 'Removed %s/%s.\n' "$TO" "$BIN" ;;
         *) printf 'Keeping %s/%s.\n' "$TO" "$BIN" ;;
     esac
+    exit "$HELPER_STATUS"
 fi
